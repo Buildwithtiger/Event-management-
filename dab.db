@@ -1,0 +1,239 @@
+-- ============================================================
+-- डेटाबेस बनाएँ (अगर मौजूद न हो)
+-- ============================================================
+CREATE DATABASE IF NOT EXISTS event_organizer;
+USE event_organizer;
+
+-- ============================================================
+-- पुरानी टेबल्स हटाएँ (सही क्रम में)
+-- ============================================================
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS price_plans;
+DROP TABLE IF EXISTS gallery;
+DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS registrations;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS admin_users;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS venues;
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================
+-- 1. एडमिन यूज़र टेबल (admin.php के लिए)
+-- ============================================================
+CREATE TABLE admin_users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,   -- password_hash से स्टोर करें
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 2. सेवाएँ (Services)
+-- ============================================================
+CREATE TABLE services (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    icon VARCHAR(50) NOT NULL,        -- FontAwesome क्लास, e.g., 'fas fa-music'
+    title VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 3. गैलरी (Gallery)
+-- ============================================================
+CREATE TABLE gallery (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    image_path VARCHAR(255) NOT NULL,
+    title VARCHAR(100) NOT NULL,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 4. प्राइस प्लान (Price Plans)
+-- ============================================================
+CREATE TABLE price_plans (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(100) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    features TEXT NOT NULL,            -- कॉमा सेपरेटेड, e.g., 'full services,decorations,music'
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 5. रिव्यू (Reviews)
+-- ============================================================
+CREATE TABLE reviews (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    role VARCHAR(100) NOT NULL,
+    image_path VARCHAR(255) NOT NULL,
+    review_text TEXT NOT NULL,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 6. संपर्क संदेश (Contact Messages)
+-- ============================================================
+CREATE TABLE messages (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    subject VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 7. (वैकल्पिक) यूज़र टेबल – अगर आपको फ्रंटएंड पर रजिस्ट्रेशन चाहिए
+-- ============================================================
+CREATE TABLE users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    role ENUM('admin', 'organizer', 'attendee') DEFAULT 'attendee',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 8. (वैकल्पिक) वेन्यू (स्थान) टेबल
+-- ============================================================
+CREATE TABLE venues (
+    venue_id INT PRIMARY KEY AUTO_INCREMENT,
+    venue_name VARCHAR(100) NOT NULL,
+    address VARCHAR(255),
+    city VARCHAR(50),
+    state VARCHAR(50),
+    pincode VARCHAR(10),
+    capacity INT DEFAULT 0,
+    contact_person VARCHAR(100),
+    contact_phone VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 9. (वैकल्पिक) इवेंट टेबल
+-- ============================================================
+CREATE TABLE events (
+    event_id INT PRIMARY KEY AUTO_INCREMENT,
+    event_name VARCHAR(100) NOT NULL,
+    event_description TEXT,
+    event_date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
+    venue_id INT,
+    max_attendees INT DEFAULT 100,
+    organizer_id INT,   -- users(user_id)
+    status ENUM('draft', 'open', 'ongoing', 'completed', 'cancelled') DEFAULT 'draft',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (venue_id) REFERENCES venues(venue_id) ON DELETE SET NULL,
+    FOREIGN KEY (organizer_id) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+-- ============================================================
+-- 10. (वैकल्पिक) रजिस्ट्रेशन टेबल
+-- ============================================================
+CREATE TABLE registrations (
+    registration_id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    user_id INT NOT NULL,
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('pending', 'confirmed', 'cancelled', 'waitlisted') DEFAULT 'pending',
+    special_requests TEXT,
+    attended BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_registration (event_id, user_id)
+);
+
+-- ============================================================
+-- ============================================================
+-- सैंपल डेटा (Demo Data)
+-- ============================================================
+
+-- एडमिन यूज़र (पासवर्ड: admin123) – हैश वही है जो reset_password.php बनाता है
+-- आप reset_password.php चलाकर भी डाल सकते हैं, यहाँ मैंने डमी हैश डाला है
+INSERT INTO admin_users (username, password) VALUES 
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');  -- 'admin123' का हैश
+
+-- सेवाएँ
+INSERT INTO services (icon, title, description, display_order) VALUES
+('fas fa-music', 'Live Music', 'Professional live bands and DJs for your event.', 1),
+('fas fa-utensils', 'Catering', 'Delicious food and beverage services.', 2),
+('fas fa-camera', 'Photography', 'Capture your memories with our expert photographers.', 3),
+('fas fa-birthday-cake', 'Event Planning', 'Complete event planning and coordination.', 4);
+
+-- गैलरी
+INSERT INTO gallery (image_path, title, display_order) VALUES
+('images/g-1.jpg', 'Wedding Decoration', 1),
+('images/g-2.jpg', 'Corporate Event', 2),
+('images/g-3.jpg', 'Birthday Party', 3),
+('images/g-4.jpg', 'Concert', 4);
+
+-- प्राइस प्लान
+INSERT INTO price_plans (title, amount, features, display_order) VALUES
+('For Weddings', 500.00, 'Full decoration, catering, music, photography', 1),
+('For Corporate', 300.00, 'Venue setup, AV equipment, lunch', 2),
+('For Birthdays', 150.00, 'Decoration, cake, games', 3);
+
+-- रिव्यू
+INSERT INTO reviews (name, role, image_path, review_text, display_order) VALUES
+('Rahul Sharma', 'Happy Client', 'images/p1.jpg', 'They made our wedding unforgettable! Highly recommended.', 1),
+('Priya Patel', 'Corporate Client', 'images/p2.jpg', 'Professional team, excellent service. Will hire again.', 2),
+('Amit Kumar', 'Birthday Party', 'images/p3.jpg', 'My son loved the party arrangements. Thank you!', 3);
+
+-- संपर्क संदेश (डेमो)
+INSERT INTO messages (name, email, subject, message, is_read) VALUES
+('Test User', 'test@example.com', 'Inquiry about wedding', 'I need services for my wedding in December. Please contact me.', FALSE);
+
+-- (वैकल्पिक) कुछ डेमो यूज़र
+INSERT INTO users (username, email, password_hash, full_name, phone, role) VALUES
+('amit_k', 'amit@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Amit Kumar', '9999999999', 'attendee'),
+('organizer1', 'org@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Organizer One', '8888888888', 'organizer');
+
+-- (वैकल्पिक) वेन्यू
+INSERT INTO venues (venue_name, address, city, state, capacity) VALUES
+('Grand Hall', '123 MG Road', 'Mumbai', 'Maharashtra', 200),
+('Open Ground', 'Park Street', 'Delhi', 'Delhi', 500);
+
+-- (वैकल्पिक) इवेंट
+INSERT INTO events (event_name, event_description, event_date, start_time, end_time, venue_id, max_attendees, organizer_id, status) VALUES
+('Tech Meetup', 'A meetup for tech enthusiasts.', '2026-07-15', '10:00:00', '17:00:00', 1, 100, 2, 'open'),
+('Music Festival', 'Outdoor music festival.', '2026-08-20', '16:00:00', '23:00:00', 2, 500, 2, 'draft');
+
+-- (वैकल्पिक) रजिस्ट्रेशन
+INSERT INTO registrations (event_id, user_id, status) VALUES
+(1, 3, 'confirmed'),
+(1, 4, 'pending');
+
+-- ============================================================
+-- ============================================================
+-- व्यू (Views) – आपकी रिपोर्ट के लिए (वैकल्पिक)
+-- ============================================================
+
+CREATE OR REPLACE VIEW vw_event_summary AS
+SELECT 
+    e.event_id,
+    e.event_name,
+    e.event_date,
+    v.venue_name,
+    e.status,
+    COUNT(r.registration_id) AS total_registrations
+FROM events e
+LEFT JOIN venues v ON e.venue_id = v.venue_id
+LEFT JOIN registrations r ON e.event_id = r.event_id
+GROUP BY e.event_id;
+
+-- ============================================================
+-- END OF SCRIPT
+-- ============================================================
